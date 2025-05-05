@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth0 } from '@auth0/auth0-react';
 import { fetchFeed, fetchSuggestions, createConnection, fetchCurrentUser, fetchConnections } from '@/lib/api';
@@ -49,6 +49,47 @@ interface ConnectionUser { _id: string; name: string; title?: string; avatarUrl?
 export default function Feed() {
   const { getAccessTokenSilently, isAuthenticated, isLoading: authLoading } = useAuth0();
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
+  
+  // Set up periodic refresh
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    // Refresh feed every 30 seconds
+    const intervalId = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated, queryClient]);
+  
+  // Set up infinite scroll
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          setPage((prevPage) => prevPage + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+    
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [isAuthenticated, hasMore, isLoadingMore]);
+  
   const connectMutation = useMutation<unknown, Error, string>({
     mutationFn: async (id: string) => {
       const token = await getAccessTokenSilently();
@@ -61,13 +102,47 @@ export default function Feed() {
     },
   });
 
-  const { data: posts = [], isLoading: postsLoading } = useQuery<FeedPost[], Error>({
-    queryKey: ['feed'],
+  const { 
+    data: posts = [], 
+    isLoading: postsLoading,
+    isFetching: isFetchingPosts
+  } = useQuery<FeedPost[], Error>({
+    queryKey: ['feed', page],
     queryFn: async () => {
       const token = await getAccessTokenSilently();
-      return fetchFeed(token);
+      setIsLoadingMore(true);
+      try {
+        const newPosts = await fetchFeed(token, page);
+        
+        // Debug timestamps
+        if (newPosts && newPosts.length > 0) {
+          console.log("First post timestamp:", newPosts[0].timestamp);
+          console.log("First post timestamp type:", typeof newPosts[0].timestamp);
+          
+          // Try to parse the timestamp
+          try {
+            const date = new Date(newPosts[0].timestamp);
+            console.log("Parsed date:", date.toISOString());
+            console.log("Is valid date:", !isNaN(date.getTime()));
+          } catch (error) {
+            console.error("Error parsing timestamp:", error);
+          }
+        }
+        
+        // If we get fewer posts than the limit, we've reached the end
+        if (newPosts.length < 50) {
+          setHasMore(false);
+        }
+        return newPosts;
+      } finally {
+        setIsLoadingMore(false);
+      }
     },
     enabled: isAuthenticated,
+    // Don't refetch on window focus to avoid disrupting infinite scroll
+    refetchOnWindowFocus: false,
+    // Use placeholderData instead of keepPreviousData
+    placeholderData: (previousData) => previousData || [],
   });
 
   const {
@@ -100,7 +175,7 @@ export default function Feed() {
     enabled: isAuthenticated,
   });
 
-  if (authLoading || postsLoading || userLoading || connLoading) {
+  if (authLoading || (postsLoading && page === 1) || userLoading || connLoading) {
     return <div className="flex items-center justify-center h-screen">Loading feed…</div>;
   }
 
@@ -155,7 +230,7 @@ export default function Feed() {
             <CreatePostCard />
             
             {/* Check for empty feed after loading */}
-            {!postsLoading && posts.length === 0 && (
+            {!postsLoading && Array.isArray(posts) && posts.length === 0 && (
               <div className="bg-white rounded-lg shadow p-6 text-center">
                 <svg 
                   className="mx-auto h-12 w-12 text-gray-400" 
@@ -189,7 +264,7 @@ export default function Feed() {
             )}
 
             {/* Render posts if not empty */}
-            {posts.map(post => (
+            {Array.isArray(posts) && posts.map(post => (
               <PostCard 
                 key={post._id}
                 id={post._id}
@@ -205,6 +280,16 @@ export default function Feed() {
                 isLiked={post.isLiked}
               />
             ))}
+            
+            {/* Infinite scroll observer target */}
+            <div ref={observerTarget} className="h-10 flex items-center justify-center">
+              {isLoadingMore && (
+                <div className="text-gray-500">Loading more posts...</div>
+              )}
+              {!hasMore && Array.isArray(posts) && posts.length > 0 && (
+                <div className="text-gray-500">No more posts to load</div>
+              )}
+            </div>
           </div>
           
           {/* Right sidebar */}

@@ -7,15 +7,18 @@ import { checkJwt } from "./middleware/auth";
 import postsRouter from "./routes/posts.route";
 import usersRouter from "./routes/users.route";
 import connectionsRouter from "./routes/connections.route";
-import { seedDatabase } from "./seed"; // Import the seeding function
+import experienceRouter from "./routes/experience.route";
+import educationRouter from "./routes/education.route";
+import skillsRouter from "./routes/skills.route";
 
 async function start() {
+  // Log MongoDB connection info (without sensitive data)
+  const dbUrl = new URL(config.MONGODB_URI);
+  console.log(`Connecting to MongoDB at ${dbUrl.host}${dbUrl.pathname}`);
+
   // Connect to MongoDB
   await mongoose.connect(config.MONGODB_URI);
   console.log("Connected to MongoDB");
-
-  // Seed the database (runs only if needed)
-  await seedDatabase();
 
   // Connect to Redis
   const redisClient = new Redis(config.REDIS_URL);
@@ -36,6 +39,9 @@ async function start() {
   app.use("/api/posts", checkJwt, postsRouter);
   app.use("/api/users", checkJwt, usersRouter);
   app.use("/api/connections", checkJwt, connectionsRouter);
+  app.use("/api/experience", checkJwt, experienceRouter);
+  app.use("/api/education", checkJwt, educationRouter);
+  app.use("/api/skills", checkJwt, skillsRouter);
 
   // Global error handler
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

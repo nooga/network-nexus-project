@@ -8,6 +8,9 @@ export interface IUser extends Document {
   avatarUrl: string;
   bio?: string;
   location?: string;
+  skills?: Types.ObjectId[];
+  experience?: Types.ObjectId[];
+  education?: Types.ObjectId[];
 }
 
 const UserSchema = new Schema<IUser>(
@@ -26,8 +29,27 @@ const UserSchema = new Schema<IUser>(
     bio: { type: String },
     location: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// Virtual fields for related data
+UserSchema.virtual("skills", {
+  ref: "Skill",
+  localField: "_id",
+  foreignField: "user",
+});
+
+UserSchema.virtual("experience", {
+  ref: "Experience",
+  localField: "_id",
+  foreignField: "user",
+});
+
+UserSchema.virtual("education", {
+  ref: "Education",
+  localField: "_id",
+  foreignField: "user",
+});
 
 export const User = model<IUser>("User", UserSchema);
 export default User;

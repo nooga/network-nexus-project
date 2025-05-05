@@ -1,15 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Header from "@/components/Header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Edit, ExternalLink, Link2, MapPin, MoreHorizontal, PenSquare, Plus, User } from "lucide-react";
+import { Edit, MapPin, PenSquare, Plus, User } from "lucide-react";
 import PostCard from "@/components/PostCard";
 import { useAuth0 } from '@auth0/auth0-react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { fetchCurrentUser, fetchUserByUsername, fetchUserPosts, fetchConnections, fetchUserConnections } from '@/lib/api';
+import { fetchCurrentUser, fetchUserByUsername, fetchUserPosts, fetchConnections, fetchUserConnections, fetchUserComments } from '@/lib/api';
+import CommentCard from '@/components/CommentCard';
+import EditProfileModal from '@/components/EditProfileModal';
+import ExperienceSection from '@/components/ExperienceSection';
+import EducationSection from '@/components/EducationSection';
+import SkillsSection from '@/components/SkillsSection';
 
 // Profile page data fetched from API
 interface UserProfile {
@@ -51,9 +56,36 @@ interface UserPost {
   isLiked?: boolean;
 }
 
+// Update UserComment interface
+interface UserComment {
+  _id: string;
+  content: string;
+  createdAt: string;
+  author: {
+    _id: string;
+    username: string;
+    name: string;
+    title?: string;
+    avatarUrl?: string;
+  };
+  post: {
+    _id: string;
+    content: string;
+    comments: number;
+    author: {
+      _id: string;
+      username: string;
+      name: string;
+      title?: string;
+      avatarUrl?: string;
+    };
+  };
+}
+
 export default function Profile() {
   const { username } = useParams<{ username: string }>();
   const { user: authUser, getAccessTokenSilently, isAuthenticated, isLoading: authLoading } = useAuth0();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const { data: profileUser, isLoading: userLoading, error: userError } = useQuery<UserProfile, Error>({
     queryKey: username ? ['userProfileByUsername', username] : ['currentUserProfile'],
@@ -92,7 +124,18 @@ export default function Profile() {
     enabled: isAuthenticated && !!targetUserId,
   });
 
-  const isLoading = authLoading || userLoading || (!!targetUserId && (connLoading || postsLoading));
+  // Add comments query
+  const { data: comments = [], isLoading: commentsLoading } = useQuery<UserComment[], Error>({
+    queryKey: ['userComments', targetUserId],
+    queryFn: async () => {
+      if (!targetUserId) throw new Error("Target User ID not available for comments fetch");
+      const token = await getAccessTokenSilently();
+      return fetchUserComments(token, targetUserId);
+    },
+    enabled: isAuthenticated && !!targetUserId,
+  });
+
+  const isLoading = authLoading || userLoading || (!!targetUserId && (connLoading || postsLoading || commentsLoading));
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Loading profile…</div>;
@@ -150,70 +193,92 @@ export default function Profile() {
             </div>
             
             {/* Profile info */}
-            <div className="mt-16 md:flex md:justify-between md:items-center">
-              <div>
-                <h1 className="text-2xl font-bold">{profileUser?.name}</h1>
-                <p className="text-gray-700 mt-1">{profileUser?.title}</p>
-                <div className="flex items-center text-gray-500 mt-2 text-sm">
-                  {profileUser?.location && (
-                    <>
-                      <MapPin className="h-4 w-4 mr-1" />
-                      <span>{profileUser.location}</span>
-                      <span className="mx-2">•</span>
-                    </>
+            <div className="mt-16">
+              <div className="md:flex md:justify-between md:items-start">
+                <div>
+                  <h1 className="text-2xl font-bold">{profileUser?.name}</h1>
+                  <p className="text-gray-700 mt-1">{profileUser?.title}</p>
+                  <div className="flex items-center text-gray-500 mt-2 text-sm">
+                    {profileUser?.location && (
+                      <>
+                        <MapPin className="h-4 w-4 mr-1" />
+                        <span>{profileUser.location}</span>
+                        <span className="mx-2">•</span>
+                      </>
+                    )}
+                    <span className="text-linkedin-blue font-medium">
+                      {connections.length} connections
+                    </span>
+                  </div>
+                </div>
+                {isCurrentUserProfile ? (
+                  <div className="mt-4 md:mt-0 flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full md:w-auto"
+                      onClick={() => setIsEditModalOpen(true)}
+                    >
+                      Edit profile
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-4 md:mt-0 flex space-x-2">
+                    <Button className="w-full md:w-auto">
+                      Connect
+                    </Button>
+                    <Button variant="outline" className="w-full md:w-auto">
+                      Message
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* About section */}
+              <div className="mt-6 border-t pt-6">
+                <div className="flex justify-between items-start">
+                  <h3 className="font-medium text-lg">About</h3>
+                  {isCurrentUserProfile && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setIsEditModalOpen(true)}
+                    >
+                      <PenSquare className="h-4 w-4" />
+                    </Button>
                   )}
                 </div>
-                <div className="text-sm text-linkedin-blue font-medium mt-2">
-                  {connections.length} connections
-                </div>
+                <p className="text-sm mt-2 whitespace-pre-line">{profileUser?.bio || "No bio available."}</p>
               </div>
-              {isCurrentUserProfile ? (
-                <div className="mt-4 md:mt-0 flex space-x-2">
-                </div>
-              ) : (
-                <div className="mt-4 md:mt-0 flex space-x-2">
-                </div>
-              )}
             </div>
           </div>
         </div>
         
-        {/* Tabs and content */}
+        {/* Content grid */}
         <div className="grid grid-cols-12 gap-4">
+          {/* Main content */}
           <div className="col-span-12 lg:col-span-8 space-y-4">
             <Tabs defaultValue="posts" className="w-full">
               <div className="bg-white rounded-lg shadow mb-4">
                 <TabsList className="w-full justify-start border-b p-0">
-                  <TabsTrigger value="posts" className="rounded-none py-3 px-4 data-[state=active]:border-b-2 data-[state=active]:border-black">Posts</TabsTrigger>
-                  <TabsTrigger value="activity" className="rounded-none py-3 px-4 data-[state=active]:border-b-2 data-[state=active]:border-black">Activity</TabsTrigger>
-                  <TabsTrigger value="about" className="rounded-none py-3 px-4 data-[state=active]:border-b-2 data-[state=active]:border-black">About</TabsTrigger>
+                  <TabsTrigger value="posts" className="rounded-none py-3 px-4 data-[state=active]:border-b-2 data-[state=active]:border-black">
+                    Posts
+                    <span className="ml-2 text-xs text-gray-500">{posts.length}</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="comments" className="rounded-none py-3 px-4 data-[state=active]:border-b-2 data-[state=active]:border-black">
+                    Comments
+                    <span className="ml-2 text-xs text-gray-500">{comments.length}</span>
+                  </TabsTrigger>
                 </TabsList>
               </div>
               
               <TabsContent value="posts" className="space-y-4 mt-0">
-                {posts.length > 0 && isCurrentUserProfile && (
+                {posts.length === 0 && !postsLoading && (
                   <Card>
                     <CardContent className="p-4">
-                      <div className="flex items-center mb-3">
-                        <h3 className="font-medium">Activity</h3>
-                        <span className="ml-2 text-sm text-gray-500">{posts.length} posts</span>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm" className="text-linkedin-blue">Posts</Button>
-                        <Button variant="ghost" size="sm" className="text-gray-500">Comments</Button>
-                        <Button variant="ghost" size="sm" className="text-gray-500">Images</Button>
-                      </div>
+                      <h3 className="font-medium text-center text-gray-500">No posts yet</h3>
                     </CardContent>
                   </Card>
                 )}
-                
-                {posts.length === 0 && !postsLoading && (
-                   <Card>
-                     <CardContent className="p-4">
-                       <h3 className="font-medium text-center text-gray-500">No posts yet</h3>
-                     </CardContent>
-                   </Card>
-                 )}
 
                 {posts.map(post => (
                   <PostCard 
@@ -233,105 +298,77 @@ export default function Profile() {
                 ))}
               </TabsContent>
               
-              <TabsContent value="activity" className="space-y-4 mt-0">
-                <Card>
-                  <CardContent className="p-4">
-                    <h3 className="font-medium">No recent activity</h3>
-                    <p className="text-sm text-gray-500 mt-2">User's shared posts, comments, or reactions will be displayed here.</p>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="about" className="mt-0">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium">About</h3>
-                      {isCurrentUserProfile && (
-                        <Button variant="ghost" size="icon">
-                          <PenSquare className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-sm mt-2 whitespace-pre-line">{profileUser?.bio || "No bio available."}</p>
-                  </CardContent>
-                </Card>
+              <TabsContent value="comments" className="space-y-4 mt-0">
+                {commentsLoading ? (
+                  <Card>
+                    <CardContent className="p-4">
+                      <h3 className="font-medium text-center text-gray-500">Loading comments...</h3>
+                    </CardContent>
+                  </Card>
+                ) : comments.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-4">
+                      <h3 className="font-medium text-center text-gray-500">No comments yet</h3>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  comments.map(comment => (
+                    <CommentCard key={comment._id} comment={comment} />
+                  ))
+                )}
               </TabsContent>
             </Tabs>
           </div>
           
+          {/* Sidebar */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
             {/* Experience section */}
             <Card>
               <CardContent className="p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium">Experience</h3>
-                  {isCurrentUserProfile && (
-                    <div className="flex space-x-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <PenSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">No experience added yet.</p>
-                </div>
+                <ExperienceSection 
+                  userId={profileUser._id} 
+                  isOwnProfile={isCurrentUserProfile} 
+                />
               </CardContent>
             </Card>
             
             {/* Education section */}
             <Card>
               <CardContent className="p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium">Education</h3>
-                  {isCurrentUserProfile && (
-                    <div className="flex space-x-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <PenSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">No education added yet.</p>
-                </div>
+                <EducationSection 
+                  userId={profileUser._id} 
+                  isOwnProfile={isCurrentUserProfile} 
+                />
               </CardContent>
             </Card>
             
             {/* Skills section */}
             <Card>
               <CardContent className="p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium">Skills</h3>
-                  {isCurrentUserProfile && (
-                    <div className="flex space-x-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <PenSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-500">No skills added yet.</p>
-                </div>
+                <SkillsSection 
+                  userId={profileUser._id} 
+                  isOwnProfile={isCurrentUserProfile} 
+                />
               </CardContent>
             </Card>
           </div>
         </div>
       </main>
+
+      {/* Edit Profile Modal */}
+      {isCurrentUserProfile && (
+        <EditProfileModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          currentProfile={{
+            sub: profileUser.sub || '',
+            name: profileUser.name,
+            title: profileUser.title,
+            bio: profileUser.bio,
+            location: profileUser.location,
+          }}
+        />
+      )}
     </div>
   );
 }

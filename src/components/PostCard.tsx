@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { likePost, unlikePost } from "@/lib/api";
 import { useAuth0 } from "@auth0/auth0-react";
@@ -10,6 +10,13 @@ import { Link } from "react-router-dom";
 import { Clock, Globe, MessageSquare, MoreHorizontal, Share2, ThumbsUp, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CommentsSection from "@/components/CommentsSection";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PostCardProps {
   id: string;
@@ -42,7 +49,39 @@ export default function PostCard({
   const [liked, setLiked] = useState(isLiked);
   const [likeCount, setLikeCount] = useState(likes);
   const [showComments, setShowComments] = useState(false);
+  const [timeAgoText, setTimeAgoText] = useState("");
   const { getAccessTokenSilently } = useAuth0();
+  const queryClient = useQueryClient();
+  
+  // Format the full timestamp for the tooltip
+  const formattedTimestamp = (() => {
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return "Invalid date";
+      }
+      return date.toLocaleString();
+    } catch (error) {
+      console.error("Error formatting timestamp:", error);
+      return "Invalid date";
+    }
+  })();
+  
+  // Update timeAgo text every minute
+  useEffect(() => {
+    const updateTimeAgo = () => {
+      setTimeAgoText(getTimeAgo(timestamp));
+    };
+    
+    // Initial update
+    updateTimeAgo();
+    
+    // Update every minute
+    const intervalId = setInterval(updateTimeAgo, 60000);
+    
+    return () => clearInterval(intervalId);
+  }, [timestamp]);
+  
   const likeMutation = useMutation<{ likes: number }, Error, boolean>({
     mutationFn: async (newLiked: boolean) => {
       const token = await getAccessTokenSilently();
@@ -51,6 +90,10 @@ export default function PostCard({
     onSuccess: (updated) => {
       setLikeCount(updated.likes);
       setLiked((prev) => !prev);
+      // Also refresh comments if they're visible
+      if (showComments) {
+        queryClient.invalidateQueries({ queryKey: ['comments', id] });
+      }
     },
   });
 
@@ -62,25 +105,65 @@ export default function PostCard({
     likeMutation.mutate(!liked);
   };
 
-  const timeAgo = (isoString: string) => {
-    const date = new Date(isoString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+  const getTimeAgo = (isoString: string) => {
+    // Ensure we have a valid timestamp
+    if (!isoString) {
+      console.error("Invalid timestamp provided to getTimeAgo");
+      return "unknown time";
+    }
+    
+    // Parse the date - handle both ISO strings and MongoDB ObjectId timestamps
+    let date: Date;
+    try {
+      date = new Date(isoString);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error(`Invalid date: ${isoString}`);
+        return "unknown time";
+      }
+      
+      // Normalize to UTC to avoid time zone issues
+      // This ensures consistent comparison regardless of local time zone
+      const utcDate = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+        date.getUTCSeconds()
+      ));
+      
+      const now = new Date();
+      const utcNow = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds()
+      ));
+      
+      const diffMs = utcNow.getTime() - utcDate.getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
 
-    if (diffDays > 7) {
-      return date.toLocaleDateString();
-    } else if (diffDays > 0) {
-      return `${diffDays}d`;
-    } else if (diffHours > 0) {
-      return `${diffHours}h`;
-    } else if (diffMins > 0) {
-      return `${diffMins}m`;
-    } else {
-      return 'just now';
+      if (diffDays > 7) {
+        return date.toLocaleDateString();
+      } else if (diffDays > 0) {
+        return `${diffDays}d`;
+      } else if (diffHours > 0) {
+        return `${diffHours}h`;
+      } else if (diffMins > 0) {
+        return `${diffMins}m`;
+      } else {
+        return 'just now';
+      }
+    } catch (error) {
+      console.error(`Error parsing date: ${isoString}`, error);
+      return "unknown time";
     }
   };
   
@@ -108,7 +191,16 @@ export default function PostCard({
                   <p className="text-xs text-gray-500">{author.title}</p>
                 )}
                 <div className="flex items-center text-xs text-gray-500 mt-0.5">
-                  <span>{timeAgo(timestamp)}</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">{timeAgoText}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{formattedTimestamp}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <span className="mx-1">•</span>
                   <Globe className="h-3 w-3" />
                 </div>

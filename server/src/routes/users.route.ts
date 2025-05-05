@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import User from "../models/user.model";
 import Post from "../models/post.model";
 import Connection from "../models/connection.model";
+import Comment from "../models/comment.model";
 import slugify from "slugify";
 
 // Auth0 attaches JWT payload on req.auth
@@ -164,6 +165,61 @@ const getUserPosts: RequestHandler = async (req, res, next) => {
   }
 };
 router.get("/:id/posts", getUserPosts);
+
+// GET /api/users/:id/comments - list comments by a specific user with associated posts
+const getUserComments: RequestHandler = async (req, res, next) => {
+  const { id } = req.params;
+  const page = parseInt(req.query.page as string, 10) || 1;
+  const limit = parseInt(req.query.limit as string, 10) || 50;
+  const skip = (page - 1) * limit;
+
+  if (!Types.ObjectId.isValid(id)) {
+    res.status(400).json({ error: "Invalid user ID format" });
+    return;
+  }
+
+  const userId = new Types.ObjectId(id);
+
+  try {
+    // Find comments by user and populate both the author and post details
+    const comments = await Comment.find({ author: userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("author", "sub name title avatarUrl username")
+      .populate({
+        path: "post",
+        populate: {
+          path: "author",
+          select: "sub name title avatarUrl username",
+        },
+      })
+      .lean();
+
+    // For each comment, fetch the total comment count on its post
+    const commentsWithContext = await Promise.all(
+      comments.map(async (comment) => {
+        const post = comment.post as {
+          _id: Types.ObjectId;
+          [key: string]: any;
+        };
+        const totalComments = await Comment.countDocuments({ post: post._id });
+        return {
+          ...comment,
+          post: {
+            ...post,
+            comments: totalComments,
+          },
+        };
+      })
+    );
+
+    res.json(commentsWithContext);
+  } catch (err) {
+    next(err);
+  }
+};
+router.get("/:id/comments", getUserComments);
 
 // --- Other Routes ---
 

@@ -262,3 +262,232 @@ export async function searchUsers(token: string, query: string) {
   );
   return handleResponse(res);
 }
+
+// Fetch comments made by a specific user
+export async function fetchUserComments(
+  token: string,
+  userId: string,
+  page = 1,
+  limit = 50
+) {
+  const res = await fetch(
+    `${API}/api/users/${userId}/comments?page=${page}&limit=${limit}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return handleResponse(res);
+}
+
+// Experience
+interface ExperienceApiData {
+  title: string;
+  company: string;
+  location?: string;
+  startDate: string;
+  endDate?: string;
+  current: boolean;
+  description?: string;
+  employmentType?:
+    | "full-time"
+    | "part-time"
+    | "self-employed"
+    | "freelance"
+    | "contract"
+    | "internship";
+}
+
+export async function fetchUserExperience(token: string, userId: string) {
+  const res = await fetch(`${API}/api/experience/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function createExperience(
+  token: string,
+  experience: ExperienceApiData
+) {
+  const res = await fetch(`${API}/api/experience`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(experience),
+  });
+  return handleResponse(res);
+}
+
+export async function updateExperience(
+  token: string,
+  id: string,
+  experience: Partial<ExperienceApiData>
+) {
+  const res = await fetch(`${API}/api/experience/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(experience),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteExperience(token: string, id: string) {
+  const res = await fetch(`${API}/api/experience/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+// Education
+interface EducationApiData {
+  school: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startDate: string;
+  endDate?: string;
+  current: boolean;
+  description?: string;
+  activities?: string;
+  grade?: string;
+}
+
+export async function fetchUserEducation(token: string, userId: string) {
+  const res = await fetch(`${API}/api/education/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function createEducation(
+  token: string,
+  education: EducationApiData
+) {
+  const res = await fetch(`${API}/api/education`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(education),
+  });
+  return handleResponse(res);
+}
+
+export async function updateEducation(
+  token: string,
+  id: string,
+  education: Partial<EducationApiData>
+) {
+  const res = await fetch(`${API}/api/education/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(education),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteEducation(token: string, id: string) {
+  const res = await fetch(`${API}/api/education/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+// Skills
+export async function fetchUserSkills(token: string, userId: string) {
+  const res = await fetch(`${API}/api/skills/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function createSkill(
+  token: string,
+  data: { name: string; category: string }
+) {
+  const res = await fetch(`${API}/api/skills`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteSkill(token: string, id: string) {
+  const res = await fetch(`${API}/api/skills/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function endorseSkill(token: string, id: string) {
+  const res = await fetch(`${API}/api/skills/${id}/endorse`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse(res);
+}
+
+export async function removeEndorsement(token: string, id: string) {
+  const res = await fetch(`${API}/api/skills/${id}/endorse`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export default {
+  fetchPosts,
+  fetchFeed,
+  createPost,
+  fetchComments,
+  addComment,
+  fetchUser,
+  fetchUserByUsername,
+  fetchCurrentUser,
+  upsertUser,
+  fetchUserConnections,
+  fetchConnections,
+  fetchPendingConnections,
+  createConnection,
+  updateConnection,
+  deleteConnection,
+  fetchSuggestions,
+  fetchUserPosts,
+  likePost,
+  unlikePost,
+  searchUsers,
+  fetchUserComments,
+  // Experience
+  fetchUserExperience,
+  createExperience,
+  updateExperience,
+  deleteExperience,
+  // Education
+  fetchUserEducation,
+  createEducation,
+  updateEducation,
+  deleteEducation,
+  // Skills
+  fetchUserSkills,
+  createSkill,
+  deleteSkill,
+  endorseSkill,
+  removeEndorsement,
+};

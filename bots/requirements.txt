@@ -1,0 +1,6 @@
+python-dotenv==1.0.0
+httpx==0.24.1
+asyncio==3.4.3
+pymongo==4.5.0
+dnspython==2.7.0
+httpcore==0.17.3 

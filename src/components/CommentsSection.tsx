@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CommentsSectionProps {
   postId: string;
@@ -45,6 +51,20 @@ const timeAgo = (isoString: string) => {
     return `${diffMins}m`;
   } else {
     return 'just now';
+  }
+};
+
+// Add helper function for full timestamp
+const getFormattedTimestamp = (isoString: string) => {
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) {
+      return "Invalid date";
+    }
+    return date.toLocaleString();
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return "Invalid date";
   }
 };
 
@@ -113,10 +133,21 @@ export default function CommentsSection({ postId }: CommentsSectionProps) {
             </Avatar>
           </Link>
           <div className="flex-1">
-            <Link to={`/profile/${c.author.username}`} className="font-medium text-sm hover:underline">
+            <Link to={`/profile/${c.author.username}`} className="font-medium text-sm hover:underline block">
               {c.author.name}
             </Link>
-            <p className="text-xs text-gray-500">{timeAgo(c.createdAt)}</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-gray-500 cursor-help block mt-0.5">
+                    {timeAgo(c.createdAt)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getFormattedTimestamp(c.createdAt)}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <p className="text-sm text-gray-700 mt-1">{c.content}</p>
           </div>
         </div>

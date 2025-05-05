@@ -23,6 +23,22 @@ dist-ssr
 *.sln
 *.sw?
 azure.json
+gcp.json
 
 # Environment variables
 .env
+
+# Python virtual environment
+simulator/venv/
+venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo

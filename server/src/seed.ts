@@ -255,6 +255,7 @@ export const connectAndSeed = async () => {
 // If you want to run this script directly for testing:
 // Add ` "seed": "ts-node server/src/seed.ts" ` to your package.json scripts
 // Then run `npm run seed` or `yarn seed`
+/*
 if (require.main === module) {
   console.log("Running seed script directly...");
   connectAndSeed()
@@ -266,3 +267,4 @@ if (require.main === module) {
       process.exit(1);
     });
 }
+*/

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Bell, Briefcase, Home, MessageSquare, Search, User, Users } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,13 +10,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth0 } from "@auth0/auth0-react";
-import { searchUsers, fetchCurrentUser } from "@/lib/api";
+import { searchUsers, fetchCurrentUser, fetchPendingConnections } from "@/lib/api";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Logo } from "@/components/Logo";
+import { Badge } from "@/components/ui/badge";
 
 // Shape of a user returned by search
 interface UserSearchResult {
@@ -35,12 +36,27 @@ interface UserProfile {
   avatarUrl?: string; 
 }
 
+// Type for pending connection invitations
+interface PendingConnection {
+  _id: string;
+  from: {
+    _id: string;
+    sub: string;
+    username: string;
+    name: string;
+    title?: string;
+    avatarUrl?: string;
+  };
+}
+
 export default function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { getAccessTokenSilently, isAuthenticated, logout } = useAuth0();
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
 
   // Fetch current user for avatar
   const { data: user, isLoading: userLoading } = useQuery<UserProfile, Error>({
@@ -50,6 +66,18 @@ export default function Header() {
       return fetchCurrentUser(token);
     },
     enabled: isAuthenticated,
+  });
+
+  // Fetch pending invitations
+  const { data: pendingInvitations = [], isLoading: pendingLoading } = useQuery<PendingConnection[], Error>({
+    queryKey: ['pendingConnections'],
+    queryFn: async () => {
+      const token = await getAccessTokenSilently();
+      return fetchPendingConnections(token);
+    },
+    enabled: isAuthenticated,
+    // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   const { data: searchResults = [], isLoading: searchLoading } = useQuery<UserSearchResult[], Error, UserSearchResult[]>({ 
@@ -67,14 +95,37 @@ export default function Header() {
       setIsSearchOpen(searchQuery.length > 0);
   }, [searchQuery]);
 
+  // Handle logo click - refresh feed if already on feed page, otherwise navigate to feed
+  const handleLogoClick = (e: React.MouseEvent) => {
+    if (location.pathname === '/') {
+      // If already on feed, refresh it
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+    } else {
+      // Otherwise navigate to feed
+      navigate('/');
+    }
+  };
+
+  // Handle network click - navigate to invitations tab if there are pending invites
+  const handleNetworkClick = (e: React.MouseEvent) => {
+    if (pendingInvitations.length > 0) {
+      navigate('/network?tab=invitations');
+    } else {
+      navigate('/network');
+    }
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0">
+            <div 
+              className="flex-shrink-0 cursor-pointer" 
+              onClick={handleLogoClick}
+            >
               <Logo />
-            </Link>
+            </div>
             <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
               <PopoverTrigger asChild>
                 <div className="ml-4 relative flex-grow max-w-xs hidden md:block">
@@ -140,10 +191,18 @@ export default function Header() {
               <Home className="h-6 w-6" />
               <span className="hidden md:inline-block">Home</span>
             </Link>
-            <Link to="/network" className="p-2 text-gray-500 hover:text-linkedin-blue flex flex-col items-center text-xs">
+            <div 
+              className="p-2 text-gray-500 hover:text-linkedin-blue flex flex-col items-center text-xs cursor-pointer relative"
+              onClick={handleNetworkClick}
+            >
               <Users className="h-6 w-6" />
               <span className="hidden md:inline-block">My Network</span>
-            </Link>
+              {pendingInvitations.length > 0 && (
+                <Badge className="absolute top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500">
+                  {pendingInvitations.length}
+                </Badge>
+              )}
+            </div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="p-2 text-gray-400 flex flex-col items-center text-xs cursor-default">
