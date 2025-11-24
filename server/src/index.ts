@@ -27,7 +27,14 @@ async function start() {
   const app = express();
 
   // Middleware
-  app.use(cors());
+  app.use(
+    cors({
+      // To allow "all" origins with credentials, we must reflect the request origin
+      // instead of using "*". strict wildcard "*" + credentials is not allowed by browsers.
+      origin: config.CORS_ORIGIN === "*" ? true : config.CORS_ORIGIN,
+      credentials: true,
+    })
+  );
   app.use(express.json());
 
   // Health check

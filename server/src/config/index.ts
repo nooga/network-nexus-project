@@ -28,6 +28,7 @@ const config = {
   AUTH0_CLIENT_ID: process.env.AUTH0_CLIENT_ID!,
   AUTH0_CLIENT_SECRET: process.env.AUTH0_CLIENT_SECRET!,
   PORT: parseInt(process.env.PORT as string, 10),
+  CORS_ORIGIN: process.env.CORS_ORIGIN || "*",
 };
 
 export default config;
